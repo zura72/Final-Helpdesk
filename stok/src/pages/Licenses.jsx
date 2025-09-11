@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { useMsal } from "@azure/msal-react";
+import { useTheme } from "../context/ThemeContext";
 
 const GRAPH_SCOPE = ["Directory.Read.All"];
 
 export default function Licenses() {
   const { instance, accounts } = useMsal();
+  const { dark } = useTheme();
   const [licenses, setLicenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
   const columns = [
     { title: "License Name", key: "productName" },
-    { title: "Sku Part Number", key: "skuPartNumber" },
-    { title: "Enabled", key: "enabled" },
-    { title: "Assigned", key: "assigned" },
-    { title: "Warning", key: "warning" },
-    { title: "Type", key: "type" },
+    { title: "Total", key: "enabled" },
+    { title: "Terpakai", key: "assigned" },
+    { title: "Tersedia", key: "available" },
+    { title: "Peringatan", key: "warning" },
+    { title: "Tipe", key: "type" },
     { title: "Status", key: "status" },
   ];
 
@@ -48,28 +50,28 @@ export default function Licenses() {
         POWER_BI_STANDARD: "Power BI Standard",
         Power_Pages_vTrial_for_Makers: "Power Pages vTrial for Makers",
         STANDARDPACK: "Office 365 E1",
+        EMSPREMIUM: "Microsoft 365 E5",
+        O365_BUSINESS_PREMIUM: "Microsoft 365 Business Premium",
+        PROJECTPROFESSIONAL: "Project Professional",
+        VISIOCLIENT: "Visio Professional",
       };
 
       const mapped = items
-        .filter(
-          (d) =>
-            d.skuPartNumber !== "WINDOWS_STORE" &&
-            d.skuPartNumber
-        )
+        .filter((d) => d.skuPartNumber !== "WINDOWS_STORE" && d.skuPartNumber)
         .map((d) => ({
-          productName:
-            productNames[d.skuPartNumber] ||
-            d.skuPartNumber.replaceAll("_", " "),
-          skuPartNumber: d.skuPartNumber,
+          productName: productNames[d.skuPartNumber] || d.skuPartNumber.replaceAll("_", " "),
           enabled: d.prepaidUnits?.enabled ?? 0,
           assigned: d.consumedUnits ?? 0,
+          available: (d.prepaidUnits?.enabled ?? 0) - (d.consumedUnits ?? 0),
           warning: d.prepaidUnits?.warning ?? 0,
           type: d.appliesTo ?? "",
           status: d.capabilityStatus ?? "",
+          skuPartNumber: d.skuPartNumber, // Tetap disimpan untuk internal use
         }));
 
       setLicenses(mapped);
     } catch (err) {
+      console.error("Gagal mengambil data:", err);
       alert("Gagal mengambil data: " + err.message);
     }
     setLoading(false);
@@ -81,47 +83,92 @@ export default function Licenses() {
     )
   );
 
+  const totalLicenses = licenses.reduce((sum, license) => sum + license.enabled, 0);
+  const totalAssigned = licenses.reduce((sum, license) => sum + license.assigned, 0);
+  const totalAvailable = licenses.reduce((sum, license) => sum + license.available, 0);
+
   return (
-    <div className="relative min-h-screen flex flex-col items-center py-8">
-      {/* --- BACKGROUND FULLSCREEN --- */}
-      <div
-        className="fixed inset-0 z-0"
-        style={{
-          background: `
-            linear-gradient(rgba(250, 250, 252, 0.34),rgba(45,30,90,0.23)),
-            url('/license-bg.jpg') center center / cover no-repeat
-          `
-        }}
-      />
-      {/* --- CONTENT --- */}
-      <div className="relative z-10 bg-transparent w-full flex flex-col items-center">
-        <div className="bg-white/90 dark:bg-gray-800/90 rounded-2xl p-8 w-full max-w-4xl shadow-xl mt-8">
-          <h2 className="text-3xl font-bold mb-6 text-[#215ba6] dark:text-white">
-            Microsoft 365 Licenses
-          </h2>
-          <div className="flex items-center mb-4 gap-2">
-            <input
-              className="px-4 py-2 rounded border border-gray-300 dark:bg-gray-700 dark:text-white"
-              style={{ minWidth: 240 }}
-              type="text"
-              placeholder="Cari License, Sku, dsb..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+    <div className={`min-h-screen p-6 ${dark ? 'dark' : ''}`}>
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className={`rounded-2xl p-6 mb-6 ${dark ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-[#215ba6] dark:text-blue-400 mb-2">
+                Microsoft 365 Licenses
+              </h1>
+              <p className="text-gray-600 dark:text-gray-300">
+                Manajemen lisensi Microsoft 365 untuk organisasi
+              </p>
+            </div>
+            
+            {/* Stats Cards */}
+            <div className="flex gap-4 mt-4 md:mt-0">
+              <div className={`p-3 rounded-lg text-center ${dark ? 'bg-blue-900/20' : 'bg-blue-100'}`}>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalLicenses}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300">Total Lisensi</div>
+              </div>
+              <div className={`p-3 rounded-lg text-center ${dark ? 'bg-green-900/20' : 'bg-green-100'}`}>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{totalAssigned}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300">Terpakai</div>
+              </div>
+              <div className={`p-3 rounded-lg text-center ${dark ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">{totalAvailable}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300">Tersedia</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Search and Actions */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Cari lisensi..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-lg border ${
+                    dark 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      : 'border-gray-300 placeholder-gray-500'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+                <span className="absolute right-3 top-3 text-gray-400">🔍</span>
+              </div>
+            </div>
             <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
               onClick={fetchLicenses}
               disabled={loading}
+              className={`px-6 py-3 rounded-lg font-medium flex items-center ${
+                loading 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white`}
             >
-              {loading ? "Loading..." : "Tampilkan Data License"}
+              {loading ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">🔄</span>
+                  Refresh Data
+                </>
+              )}
             </button>
           </div>
-          <div className="overflow-x-auto mt-2">
-            <table className="min-w-full text-base rounded-xl overflow-hidden">
+        </div>
+
+        {/* Table */}
+        <div className={`rounded-2xl p-6 ${dark ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
               <thead>
-                <tr className="bg-[#223e74] dark:bg-[#223e74] text-white">
+                <tr className={`text-lg ${dark ? 'bg-gray-700 text-gray-100' : 'bg-blue-50 text-blue-900'}`}>
                   {columns.map((col) => (
-                    <th className="px-4 py-3 text-left" key={col.key}>
+                    <th className="px-4 py-3 text-left font-semibold" key={col.key}>
                       {col.title}
                     </th>
                   ))}
@@ -131,52 +178,65 @@ export default function Licenses() {
                 {loading ? (
                   <tr>
                     <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-400">
-                      Loading...
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2"></div>
+                        Memuat data lisensi...
+                      </div>
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-400">
-                      Belum ada data license.
+                      {licenses.length === 0 ? "Belum ada data lisensi." : `Tidak ditemukan lisensi untuk "${search}"`}
                     </td>
                   </tr>
                 ) : (
                   filtered.map((row, i) => (
                     <tr
-                      key={row.skuPartNumber}
-                      className={
-                        i % 2 === 0
-                          ? "bg-blue-50 dark:bg-gray-700"
-                          : "bg-white dark:bg-gray-800"
-                      }
+                      key={i}
+                      className={`${i % 2 === 0 ? (dark ? 'bg-gray-700/50' : 'bg-gray-50') : ''} hover:${
+                        dark ? 'bg-gray-700' : 'bg-blue-50'
+                      } transition-colors`}
                     >
-                      <td className="px-4 py-2 font-semibold text-gray-800 dark:text-white">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
                         {row.productName}
                       </td>
-                      <td className="px-4 py-2 text-gray-800 dark:text-white">
-                        {row.skuPartNumber}
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">
+                        {row.enabled.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2 text-gray-800 dark:text-white">
-                        {row.enabled}
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">
+                        {row.assigned.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2 text-gray-800 dark:text-white">
-                        {row.assigned}
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          row.available > 0
+                            ? dark ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800'
+                            : dark ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {row.available.toLocaleString()}
+                        </span>
                       </td>
-                      <td className="px-4 py-2 text-gray-800 dark:text-white">
-                        {row.warning}
+                      <td className="px-4 py-3">
+                        {row.warning > 0 ? (
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            dark ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            ⚠️ {row.warning}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
                       </td>
-                      <td className="px-4 py-2 text-gray-800 dark:text-white">
-                        {row.type}
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">
+                        {row.type || '-'}
                       </td>
-                      <td className="px-4 py-2">
-                        <span
-                          className={
-                            row.status === "Enabled"
-                              ? "bg-green-300 text-green-900 px-4 py-1 rounded-lg font-bold"
-                              : "bg-red-300 text-red-900 px-4 py-1 rounded-lg font-bold"
-                          }
-                        >
-                          {row.status}
+                      <td className="px-4 py-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          row.status === "Enabled"
+                            ? dark ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800'
+                            : dark ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {row.status || 'Unknown'}
                         </span>
                       </td>
                     </tr>
@@ -185,6 +245,16 @@ export default function Licenses() {
               </tbody>
             </table>
           </div>
+
+          {/* Footer Info */}
+          {filtered.length > 0 && (
+            <div className={`mt-4 p-3 rounded-lg text-sm ${
+              dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+            }`}>
+              Menampilkan {filtered.length} dari {licenses.length} lisensi
+              {search && ` untuk pencarian "${search}"`}
+            </div>
+          )}
         </div>
       </div>
     </div>

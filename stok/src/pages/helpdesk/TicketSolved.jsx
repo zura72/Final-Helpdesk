@@ -124,7 +124,7 @@ function mapSpItem(item){
       if (typeof f[fieldName] === 'object') {
         assigned = {
           displayName: f[fieldName].Title || f[fieldName].displayName || f[fieldName].Name || '',
-          email: f[fieldName].EMail || f[fieldName].Email || f[fieldName].mail || ''
+            email: f[fieldName].EMail || f[fieldName].Email || f[fieldName].mail || ''
         };
         if (assigned.displayName) break;
       } else if (typeof f[fieldName] === 'string') {
@@ -576,8 +576,7 @@ export default function TicketSolved(){
         body { font: 12px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:#000; }
         h1 { margin:0 0 8px; font-size:18px; }
         table { width:100%; border-collapse:collapse; border:1.5pt solid #000; }
-        th,td { border:0.9pt solid
-                th,td { border:0.9pt solid #000; padding:6px 8px; vertical-align:top; }
+        th,td { border:0.9pt solid #000; padding:6px 8px; vertical-align:top; }
         thead th { background:#f3f4f6; text-align:left; }
       </style>
     `;
@@ -605,10 +604,28 @@ export default function TicketSolved(){
           <th>No. Ticket</th><th>Waktu Lapor</th><th>Waktu Selesai</th><th>User Requestor</th><th>Pelaksana</th>
           <th>Divisi</th><th>Prioritas</th><th>Status</th><th>Deskripsi</th>
         </tr></thead><tbody>${body}</tbody></table>
-      <script>onload=()=>{print();setTimeout(()=>close(),300)}</script>
+      <script>
+        onload=()=>{
+          print();
+          setTimeout(()=>{
+            if(!document.hidden) close();
+          },300)
+        }
+      </script>
     </body></html>`;
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    w.document.open(); w.document.write(html); w.document.close();
+    
+    try {
+      const w = window.open("", "_blank", "noopener,noreferrer");
+      if (w) {
+        w.document.open(); 
+        w.document.write(html); 
+        w.document.close();
+      } else {
+        console.error("Gagal membuka window untuk print");
+      }
+    } catch (e) {
+      console.error("Error saat mencetak:", e);
+    }
   }
 
   function handlePrintST(){
@@ -645,11 +662,29 @@ export default function TicketSolved(){
           <th>No. Ticket</th><th>Waktu Lapor</th><th>Waktu Selesai</th><th>User Requestor</th><th>Pelaksana</th>
           <th>Divisi</th><th>Prioritas</th><th>Status</th><th>Deskripsi</th>
         </tr></thead><tbody>${body}</tbody></table>
-      <script>onload=()=>{print();setTimeout(()=>close(),300)}</script>
+      <script>
+        onload=()=>{
+          print();
+          setTimeout(()=>{
+            if(!document.hidden) close();
+          },300)
+        }
+      </script>
     </body></html>`;
-    const w = window.open("", "_blank", "noopener,noreferrer");
-    w.document.open(); w.document.write(html); w.document.close();
-  }
+    
+    try {
+      const w = window.open("", "_blank", "noopener,noreferrer");
+      if (w) {
+        w.document.open(); 
+        w.document.write(html); 
+        w.document.close();
+      } else {
+        console.error("Gagal membuka window untuk print");
+      }
+    } catch (e) {
+      console.error("Error saat mencetak:", e);
+    }
+}
 
   /* ===================== RENDER ===================== */
   return (
@@ -1028,10 +1063,10 @@ function FormModal({ mode, data, onClose, onSubmit, onPickPhoto, onRemovePhoto, 
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white w-[720px] max-w-[92vw] rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700"
+        className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white w-[720px] max-w-[92vw] rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700`}
       >
         <div
-          className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between"
+          className={`px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between`}
         >
           <div className="font-semibold">{mode === "edit" ? "Edit" : "Tambah"} Ticket</div>
           <button onClick={onClose} className="text-sm text-gray-500 hover:underline">
@@ -1228,7 +1263,7 @@ async function setDonePhotoMetaOnSP(instance, accounts, itemId, fileName) {
     `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${TICKET_LIST_ID}/items/${itemId}/fields`,
     {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${gTok.accessToken}`, "Content-Type":"application/json" },
+      headers: { Authorization: `Bearer ${gTok.accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }
   );
