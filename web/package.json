@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5174",
-    "build": "vite build",
+    "build": "vite build && if exist build rmdir /s /q build && move dist build",
     "preview": "vite preview --port 5174",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "vercel-build": "vite build && if exist build rmdir /s /q build && move dist build"
   },
   "dependencies": {
     "react": "^18.2.0",

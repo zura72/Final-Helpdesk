@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "cross-env PORT=4000 NODE_ENV=development nodemon --ext js,mjs,cjs index.js",
     "start": "node index.js",
-    "build": "echo 'No build step for backend server'",
+    "build": "echo No build step for backend server && if not exist build mkdir build && echo Server ready > build/index.html",
     "vercel-build": "echo 'No build needed for Vercel'"
   },
   "dependencies": {

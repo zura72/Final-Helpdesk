@@ -42,17 +42,11 @@
     },
     {
       "src": "/web/(.*)",
-      "dest": "/web/$1",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
+      "dest": "/web/$1"
     },
     {
       "src": "/stok/(.*)",
-      "dest": "/stok/$1",
-      "headers": {
-        "Cache-Control": "public, max-age=31536000, immutable"
-      }
+      "dest": "/stok/$1"
     },
     {
       "src": "/",
@@ -68,8 +62,5 @@
       "maxDuration": 30,
       "memory": 1024
     }
-  },
-  "env": {
-    "NODE_ENV": "production"
   }
 }
