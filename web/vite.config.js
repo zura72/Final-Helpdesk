@@ -1,12 +1,28 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    port: 5174,
+    host: true,
+    strictPort: true,
+    hmr: {
+      overlay: false
+    }
+  },
   build: {
     outDir: 'dist',
-    sourcemap: false
+    sourcemap: false,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html')
+      }
+    }
   },
-  base: '/web/' // Penting untuk deploy di subpath
+  base: '/web/',
+  optimizeDeps: {
+    include: ['react', 'react-dom']
+  }
 })

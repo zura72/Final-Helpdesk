@@ -17,7 +17,7 @@ import {
 } from "react-icons/bs";
 import { FaRegMoon, FaRegSun } from "react-icons/fa";
 import { useMsal } from "@azure/msal-react";
-import { useTheme } from "../context/ThemeContext"; // PERBAIKI IMPORT PATH
+import { useTheme } from "../context/ThemeContext.jsx"; // PERBAIKI IMPORT PATH
 
 export default function Sidebar() {
   const [chartsOpen, setChartsOpen] = useState(false);

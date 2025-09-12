@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useMsal } from "@azure/msal-react";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme } from "../context/ThemeContext.jsx";
 
 const GRAPH_SCOPE = ["Directory.Read.All"];
 

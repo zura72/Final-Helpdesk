@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMsal } from "@azure/msal-react";
-import { useTheme } from "../context/ThemeContext"; // Pastikan path ini sesuai
+import { useTheme } from "../context/ThemeContext.jsx"; // Pastikan path ini sesuai
 
 /** ====== KONFIG ====== */
 const siteId =

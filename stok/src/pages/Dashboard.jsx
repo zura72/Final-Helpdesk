@@ -13,7 +13,7 @@ import {
   FaTools,
   FaBoxOpen
 } from "react-icons/fa";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme } from "../context/ThemeContext.jsx";
 
 // Mapping warna untuk status device
 const statusMap = {

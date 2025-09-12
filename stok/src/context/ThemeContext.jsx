@@ -1,10 +1,14 @@
-// src/context/ThemeContext.js
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const [dark, setDark] = useState(() => {
+    // Cek jika window tersedia (untuk menghindari error SSR)
+    if (typeof window === "undefined") {
+      return false;
+    }
+    
     // Cek localStorage terlebih dahulu
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme) {
@@ -29,11 +33,18 @@ export function ThemeProvider({ children }) {
 
   const toggleDark = () => {
     console.log("ThemeContext: Toggling dark mode");
-    setDark(!dark);
+    setDark(prevDark => !prevDark);
+  };
+
+  const value = {
+    dark,
+    toggleDark,
+    isDark: dark,
+    isLight: !dark
   };
 
   return (
-    <ThemeContext.Provider value={{ dark, toggleDark }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );
@@ -46,3 +57,5 @@ export function useTheme() {
   }
   return context;
 }
+
+export default ThemeContext;

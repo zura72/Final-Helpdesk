@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 8080,
+    host: true,
     proxy: {
       "/api": {
         target: "http://localhost:4000",
@@ -20,7 +24,7 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'dist',
+    outDir: 'build',
     sourcemap: false,
     rollupOptions: {
       input: {
@@ -28,5 +32,7 @@ export default defineConfig({
       }
     }
   },
-  base: '/stok/'
+  base: '/stok/',
+  publicDir: 'public', // Pastikan ini benar
+  assetsInclude: ['**/*.json', '**/*.png', '**/*.jpg'], // Include semua asset types
 })

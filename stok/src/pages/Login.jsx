@@ -1,19 +1,10 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useMsal } from "@azure/msal-react";
-import { AuthContext } from "../AppProvider";
+import { AuthContext } from "../App";
 import { useNavigate } from "react-router-dom";
+import { loginRequest } from "../authConfig";
 
-/**
- * Login.jsx (clean console)
- * - Prioritaskan /config.json (public)
- * - Fallback: /api/config, /config, :3001, :3000
- * - Saat semua gagal → pakai default aman + tampilkan banner UI (bukan console)
- */
-
-// ====== dev-only logger (otomatis diam di production) ======
-const isDev =
-  (typeof import.meta !== "undefined" && import.meta.env?.MODE === "development") ||
-  process.env.NODE_ENV === "development";
+const isDev = import.meta.env?.MODE === "development";
 
 const dev = {
   log: (...a) => isDev && console.log(...a),
@@ -23,19 +14,28 @@ const dev = {
 };
 
 export default function Login() {
-  const { instance, accounts } = useMsal();
+  const { instance, accounts, inProgress } = useMsal();
   const { rememberMe, setRememberMe } = useContext(AuthContext);
 
   const [loading, setLoading] = useState(false);
   const [adminList, setAdminList] = useState([]);
   const [configError, setConfigError] = useState(null);
   const [configLoaded, setConfigLoaded] = useState(false);
+  const [msalReady, setMsalReady] = useState(false);
 
   const navigate = useNavigate();
   const mountedRef = useRef(true);
   const navigatedRef = useRef(false);
 
-  // ============== helper: fetch JSON dengan timeout & silent 404 ==============
+  const baseUrl = import.meta.env.BASE_URL || '/stok/';
+
+  // Pastikan MSAL siap
+  useEffect(() => {
+    if (instance && inProgress === "none") {
+      setMsalReady(true);
+    }
+  }, [instance, inProgress]);
+
   const fetchJsonSilent = async (url, { timeoutMs = 3500 } = {}) => {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -46,13 +46,11 @@ export default function Login() {
         cache: "no-store",
       });
       if (!res.ok) {
-        // 404 dianggap tidak ada → jangan berisik
         if (res.status !== 404) dev.debug(`[config] ${url} -> ${res.status} ${res.statusText}`);
         return null;
       }
       return await res.json().catch(() => null);
     } catch (e) {
-      // Connection refused / CORS / timeout → dev-only log
       dev.debug(`[config] ${url} gagal: ${e?.name || "Error"} ${e?.message || e}`);
       return null;
     } finally {
@@ -60,7 +58,6 @@ export default function Login() {
     }
   };
 
-  // =============================== load config =================================
   useEffect(() => {
     mountedRef.current = true;
 
@@ -68,7 +65,7 @@ export default function Login() {
       setConfigError(null);
 
       const endpoints = [
-        "/config.json", // public (disarankan)
+        `${baseUrl}config.json`,
         "/api/config",
         "/config",
         "http://localhost:3001/api/config",
@@ -86,7 +83,6 @@ export default function Login() {
         }
       }
 
-      // Normalisasi & fallback
       const normalized =
         found && Array.isArray(found.adminEmails)
           ? { adminEmails: found.adminEmails }
@@ -98,7 +94,6 @@ export default function Login() {
         setAdminList(normalized.adminEmails.map((e) => String(e).toLowerCase()));
         setConfigError(null);
       } else {
-        // Fallback default aman (tanpa console.warn)
         setAdminList(["adminapp@waskitainfrastruktur.co.id"]);
         setConfigError("Server config tidak tersedia, menggunakan data default");
       }
@@ -110,10 +105,8 @@ export default function Login() {
     return () => {
       mountedRef.current = false;
     };
-    // deps kosong → hanya sekali saat mount
-  }, []);
+  }, [baseUrl]);
 
-  // =========================== derive current email ============================
   const currentEmail = useMemo(() => {
     const acc = accounts?.[0];
     if (!acc) return "";
@@ -123,11 +116,10 @@ export default function Login() {
     ).toLowerCase();
   }, [accounts]);
 
-  // =========================== auto-navigate ketika siap =======================
   useEffect(() => {
-    if (navigatedRef.current) return; // cegah double navigate
-    if (!configLoaded) return;        // tunggu config
-    if (!currentEmail) return;        // tunggu akun MSAL
+    if (navigatedRef.current) return;
+    if (!configLoaded) return;
+    if (!currentEmail) return;
 
     const isAdmin = adminList.includes(currentEmail);
     dev.log(`[route] email=${currentEmail} admin=${isAdmin}`);
@@ -136,28 +128,61 @@ export default function Login() {
     navigate(isAdmin ? "/helpdesk/entry" : "/chat", { replace: true });
   }, [currentEmail, adminList, navigate, configLoaded]);
 
-  // ================================= login ====================================
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    // Pastikan MSAL ready
+    if (!msalReady || !instance) {
+      alert("Sistem autentikasi belum siap. Silakan refresh halaman.");
+      return;
+    }
+
     localStorage.setItem("rememberMe", rememberMe ? "true" : "false");
     setLoading(true);
+    
     try {
       // Coba silent login dulu
       try {
-        await instance.ssoSilent({});
-      } catch {
-        // kalau gagal → popup
-        await instance.loginPopup();
+        await instance.ssoSilent(loginRequest);
+        dev.log("Silent login berhasil");
+      } catch (silentError) {
+        dev.log("Silent login gagal, mencoba popup:", silentError);
+        await instance.loginPopup(loginRequest);
       }
     } catch (error) {
-      // Tidak spam ke console—cukup alert UI
-      alert("Login gagal! Silakan coba lagi.");
+      console.error("Login error:", error);
+      if (error.errorCode === "user_cancelled") {
+        alert("Login dibatalkan oleh pengguna.");
+      } else if (error.errorCode === "interaction_in_progress") {
+        alert("Proses login sedang berjalan. Silakan tunggu.");
+      } else {
+        alert("Login gagal! Silakan coba lagi. Error: " + (error.errorMessage || error.message));
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // =============================== UI states ==================================
+  // Tampilkan loading jika MSAL belum ready
+  if (!msalReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-100">
+        <div className="text-center">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-600 mx-auto"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+              <svg className="animate-pulse h-8 w-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+              </svg>
+            </div>
+          </div>
+          <p className="mt-6 text-gray-700 font-medium">Menyiapkan sistem autentikasi...</p>
+          <p className="mt-2 text-sm text-gray-500">Harap tunggu sebentar</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!configLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-100">
@@ -176,20 +201,15 @@ export default function Login() {
       </div>
     );
   }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-indigo-800 to-purple-900 p-4 relative overflow-hidden">
-      {/* Background Pattern */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCI+CiAgPHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPgogIDxjaXJjbGUgY3g9IjMwIiBjeT0iMzAiIHI9IjEiIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPgo8L3N2Zz4=')] opacity-10"></div>
       
-      {/* Animated Circles Background */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-soft-light filter blur-3xl opacity-10 animate-pulse-slow"></div>
       <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-indigo-600 rounded-full mix-blend-soft-light filter blur-3xl opacity-10 animate-pulse-slow delay-1000"></div>
       
       <div className="max-w-5xl w-full flex flex-col md:flex-row rounded-3xl overflow-hidden shadow-2xl bg-white/5 backdrop-blur-sm border border-white/10">
-        {/* Panel Kiri - Informasi Perusahaan */}
         <div className="w-full md:w-2/5 bg-gradient-to-br from-[#7159d4] to-[#b681ff] text-white p-10 flex flex-col justify-between relative overflow-hidden">
-          {/* Background Pattern untuk Panel Kiri */}
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCI+CiAgPHBhdGggZD0iTTAgMGg2MHY2MEgweiIgZmlsbD0ibm9uZSIvPgogIDxjaXJjbGUgY3g9IjMwIiBjeT0iMzAiIHI9IjEiIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIi8+Cjwvc3ZnPg==')] opacity-10"></div>
           
           <div className="relative z-10">
@@ -216,14 +236,20 @@ export default function Login() {
           <div className="relative z-10 mt-8">
             <div className="flex items-center justify-start space-x-6 mb-8">
               <img
-                src="/Danantara-Indonesia-Logo-2025.png"
+                src={`${baseUrl}Danantara-Indonesia-Logo-2025.png`}
                 alt="Danantara Indonesia Logo"
                 className="h-20 w-auto object-contain opacity-95"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
               />
               <img
-                src="/logo-wki.png"
+                src={`${baseUrl}logo-wki.png`}
                 alt="Waskita Infrastruktur Logo"
                 className="h-16 w-auto object-contain opacity-95"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
               />
             </div>
             <p className="text-sm text-purple-200">
@@ -232,14 +258,12 @@ export default function Login() {
           </div>
         </div>
         
-        {/* Panel Kanan - Form Login */}
         <div className="w-full md:w-3/5 bg-white p-10 flex flex-col justify-center relative">
           <div className="text-center mb-10">
             <h2 className="text-4xl font-bold text-gray-800 mb-3">Masuk ke Sistem</h2>
             <p className="text-gray-600 text-lg">Gunakan akun Microsoft Anda untuk mengakses sistem</p>
           </div>
           
-          {/* Banner peringatan saat pakai fallback */}
           {configError && (
             <div className="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm flex items-start">
               <svg className="w-6 h-6 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -285,7 +309,6 @@ export default function Login() {
               disabled={loading}
               className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#7159d4] to-[#b681ff] hover:from-[#b681ff] hover:to-[#7159d4] text-white font-bold text-lg shadow-lg transition-all duration-300 transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center relative overflow-hidden group"
             >
-              {/* Animated background effect on hover */}
               <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></span>
               
               {loading ? (
@@ -315,7 +338,6 @@ export default function Login() {
         </div>
       </div>
       
-      {/* Custom CSS untuk animasi tambahan */}
       <style>
         {`
           @keyframes pulse-slow {

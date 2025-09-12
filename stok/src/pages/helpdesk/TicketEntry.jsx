@@ -1,7 +1,7 @@
 // src/pages/helpdesk/TicketEntry.jsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useMsal } from "@azure/msal-react";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../../context/ThemeContext.jsx";
 
 /* ===== ENV (aman untuk Vite & CRA, tanpa literal import.meta) ===== */
 function readEnvSafe(viteKey, craKey) {

@@ -17,13 +17,39 @@ function readEnvSafe(viteKey, craKey) {
   return viteEnv[viteKey] ?? craEnv[craKey] ?? "";
 }
 
-const API_BASE_RAW = (readEnvSafe("VITE_API_BASE", "REACT_APP_API_BASE") || "/api").trim();
-const API_BASE = API_BASE_RAW.replace(/\/+$/, ""); // buang trailing slash
+/**
+ * Prefer baca dari ENV; default kosong supaya tidak menggandakan prefix "api".
+ * Set di .env: VITE_API_BASE=/api   (untuk dev dgn Vite proxy)
+ * Atau isi absolute (http://host:port/api) bila perlu.
+ */
+const API_BASE_RAW = (readEnvSafe("VITE_API_BASE", "REACT_APP_API_BASE") || "").trim();
+
+/** Normalisasi base & path agar tidak double slash / double "api" */
+function normalizeBase(b) {
+  if (!b) return "";                      // boleh relatif
+  let base = b.replace(/\s+/g, "");
+  // buang trailing slash berlebih
+  base = base.replace(/\/+$/, "");
+  return base;
+}
+const API_BASE = normalizeBase(API_BASE_RAW);
 const IS_ABSOLUTE = /^https?:\/\//i.test(API_BASE);
+/** include cookies hanya bila absolute base (lintas origin). */
 const CREDENTIALS_MODE = IS_ABSOLUTE ? "include" : "same-origin";
 
+/** Gabung base + path tanpa menggandakan 'api' */
 function apiUrl(path) {
-  return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  const base = API_BASE; // sudah tanpa trailing slash
+  let p = String(path || "").trim();
+
+  // pastikan path diawali 1 slash
+  p = `/${p.replace(/^\/+/, "")}`;
+
+  // Jika base diakhiri "/api" dan path sudah diawali "/api", hindari dobel
+  if (/\/api$/i.test(base) && /^\/api\//i.test(p)) {
+    p = p.replace(/^\/api/i, "");
+  }
+  return `${base}${p}`;
 }
 
 /* ===================== helpers ===================== */
@@ -39,7 +65,7 @@ const DIVISION_OPTIONS = [
   "Procurement & Logistic","Project","QHSE","Sekper","Warehouse","Umum",
 ];
 
-/** Kirim tiket ke server — 1 base saja (mengikuti proxy / env) */
+/** Kirim tiket ke server — endpoint: POST /api/tickets (proxy Vite) */
 async function createTicket({ name, division = "", description, photo }) {
   const priority = String(division).trim().toLowerCase() === "direksi" ? "Urgent" : "Normal";
   const fd = new FormData();
@@ -50,7 +76,9 @@ async function createTicket({ name, division = "", description, photo }) {
   fd.append("desc", description || "");
   if (photo) fd.append("photo", photo);
 
-  const url = apiUrl("/api/tickets");
+  // >>> PERBAIKAN DI SINI: gunakan '/tickets' (tanpa '/api') karena apiUrl akan menambahkan sesuai base
+  const url = apiUrl("/tickets");
+
   const r = await fetch(url, { method: "POST", body: fd, credentials: CREDENTIALS_MODE }).catch((e) => {
     throw new Error("Network error: " + e.message);
   });
@@ -58,7 +86,6 @@ async function createTicket({ name, division = "", description, photo }) {
   const ct = r.headers.get("content-type") || "";
   const j = ct.includes("application/json") ? await r.json() : {};
   if (!r.ok || j?.ok === false) {
-    // tampilkan sebagian isi body kalau non-JSON
     if (!ct.includes("application/json")) {
       const head = (await r.text().catch(() => "")).slice(0, 120).replace(/\s+/g, " ");
       throw new Error(`Gagal membuat tiket (HTTP ${r.status}): ${head}`);

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useMsal } from "@azure/msal-react";
+import { useTheme } from "./context/ThemeContext.jsx"; // Import useTheme
 
 /* ============= Layout & Pages ============= */
 import Sidebar from "./components/Sidebar";
@@ -16,7 +17,7 @@ import TicketEntry from "./pages/helpdesk/TicketEntry";
 import TicketSolved from "./pages/helpdesk/TicketSolved";
 import ChatHost from "./pages/user/ChatHost";
 
-/* ============= Admin helpers (pakai constants/admins) ============= */
+/* ============= Admin helpers ============= */
 import {
   getAdminSetCached,
   resolveMsalEmail,
@@ -35,7 +36,7 @@ const dev = {
 /* ============= Admin Gate Hook ============= */
 function useAdminGate() {
   const { accounts } = useMsal();
-  const [adminSet, setAdminSet] = useState(null); // Set<string>
+  const [adminSet, setAdminSet] = useState(null);
 
   const email = useMemo(() => resolveMsalEmail(accounts?.[0]), [accounts]);
 
@@ -61,34 +62,20 @@ function useAdminGate() {
 
 /* ============= Guards & Layout ============= */
 function RequireAdmin({ children }) {
-  const { ready, isAdmin /*, email*/ } = useAdminGate();
+  const { ready, isAdmin } = useAdminGate();
   if (!ready) return <div className="p-6">Loading…</div>;
   if (!isAdmin) {
-    // jangan spam console, langsung redirect saja
     return <Navigate to="/chat" replace />;
   }
   return children;
 }
 
 function ThemedLayout({ children }) {
-  const [dark, setDark] = useState(() => {
-    const t = localStorage.getItem("theme");
-    return t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
-  useEffect(() => {
-    const root = document.documentElement;
-    if (dark) {
-      root.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      root.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  }, [dark]);
+  const { dark, toggleDark } = useTheme(); // Gunakan useTheme hook
 
   return (
     <div className="flex bg-gray-100 dark:bg-gray-900 min-h-screen">
-      <Sidebar dark={dark} toggleDark={() => setDark((v) => !v)} />
+      <Sidebar dark={dark} toggleDark={toggleDark} />
       <div className="flex-1 p-6 md:p-10">{children}</div>
     </div>
   );
@@ -103,7 +90,7 @@ function LandingRouter() {
     if (!ready) return;
     const target = isAdmin ? "/dashboard" : "/chat";
     dev.log("[LandingRouter] email:", email, "→", target);
-    nav(target, { replace: true }); // gunakan replace agar tidak ada history back ke "/"
+    nav(target, { replace: true });
   }, [ready, isAdmin, nav, email]);
 
   return <div className="p-6">Mengarahkan…</div>;
@@ -119,7 +106,7 @@ export default function AppRoutes() {
       {/* CHAT fullscreen (tanpa sidebar) */}
       <Route path="/chat" element={<ChatHost />} />
 
-      {/* ADMIN layout */}
+      {/* ADMIN layout dengan theme */}
       <Route
         path="/dashboard"
         element={
